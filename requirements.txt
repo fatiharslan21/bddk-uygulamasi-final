@@ -1,0 +1,9 @@
+streamlit
+pandas
+selenium
+webdriver-manager
+beautifulsoup4
+plotly
+xlsxwriter
+openpyxl
+openai
