@@ -95,7 +95,7 @@ st.markdown("""
 
     [data-testid="stSidebarCollapseButton"] { display: none; }
 
-    /* 3. ÖZEL İMZA FOOTER'I (FATİH ARSLAN) */
+    /* 3. ÖZEL İMZA FOOTER'I (Fatih Arslan 2025) */
     .fatih-footer {
         position: fixed;
         left: 0;
@@ -116,7 +116,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- İMZA EKLEME ---
-st.markdown('<div class="fatih-footer">FATİH ARSLAN TARAFINDAN YAPILMIŞTIR</div>', unsafe_allow_html=True)
+st.markdown('<div class="fatih-footer">Fatih Arslan 2025</div>', unsafe_allow_html=True)
 
 # --- 2. CONFIG ---
 AY_LISTESI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım",
