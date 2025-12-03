@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import numpy as np  # İstatistiksel hesaplar için eklendi
+import numpy as np
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -21,20 +21,40 @@ import io
 # --- 1. AYARLAR VE TASARIM ---
 st.set_page_config(page_title="BDDK ANALİZ", layout="wide", page_icon="🏦", initial_sidebar_state="expanded")
 
-# --- CSS VE UI DÜZENLEMELERİ ---
+# --- CSS: TÜM REKLAM VE LOGOLARI GİZLEME ---
 st.markdown("""
 <style>
-    /* 1. SHARE PANELİ, HAMBURGER MENÜ VE HEADER GİZLEME */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    .stDeployButton {display:none;}
-    [data-testid="stToolbar"] {visibility: hidden;}
+    /* 1. STANDART STREAMLIT ELEMENTLERİNİ GİZLEME */
 
-    /* 2. STANDART FOOTER GİZLEME */
-    footer {visibility: hidden;}
+    /* Hamburger Menü (Sağ üstteki 3 nokta) */
+    #MainMenu {visibility: hidden; display: none;}
 
-    /* GENEL STİL AYARLARI */
-    .stApp { background-color: #F9F9F9; margin-bottom: 50px; } /* Footer için alt boşluk */
+    /* Header (Üstteki boşluk ve renkli çizgi) */
+    header {visibility: hidden; display: none;}
+    [data-testid="stHeader"] {visibility: hidden; display: none;}
+
+    /* Footer ("Made with Streamlit" yazısı) */
+    footer {visibility: hidden; display: none !important;}
+
+    /* Deploy Butonu */
+    .stDeployButton {display:none !important;}
+
+    /* Toolbar (Sağ üstteki buton grubu) */
+    [data-testid="stToolbar"] {visibility: hidden; display: none !important;}
+
+    /* Üstteki renkli dekorasyon çizgisi */
+    [data-testid="stDecoration"] {visibility: hidden; display: none;}
+
+    /* Sağ üstteki "Running" animasyonu */
+    [data-testid="stStatusWidget"] {visibility: hidden; display: none;}
+
+    /* 2. GENEL SAYFA AYARLARI */
+    .stApp { 
+        background-color: #F9F9F9; 
+        margin-top: -80px; /* Header gidince oluşan boşluğu yukarı çekmek için */
+        padding-bottom: 60px; /* Özel footer için yer aç */
+    }
+
     [data-testid="stSidebar"] { background-color: #FCB131; border-right: 1px solid #e0e0e0; }
     [data-testid="stSidebar"] * { color: #000000 !important; font-family: 'Segoe UI', sans-serif; }
 
@@ -75,27 +95,28 @@ st.markdown("""
 
     [data-testid="stSidebarCollapseButton"] { display: none; }
 
-    /* 3. ÖZEL İMZA FOOTER'I (Fatih Arslan) */
+    /* 3. ÖZEL İMZA FOOTER'I (FATİH ARSLAN) */
     .fatih-footer {
         position: fixed;
         left: 0;
         bottom: 0;
         width: 100%;
-        background-color: #FCB131; /* Sidebar rengiyle uyumlu */
+        background-color: #FCB131;
         color: #000000;
         text-align: center;
-        padding: 10px;
-        font-weight: bold;
+        padding: 12px;
+        font-weight: 800; /* Daha kalın yazı */
         font-size: 14px;
-        border-top: 2px solid #000000;
-        z-index: 99999;
+        border-top: 3px solid #000000;
+        z-index: 999999;
         font-family: 'Segoe UI', sans-serif;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- İMZA EKLEME ---
-st.markdown('<div class="fatih-footer">Fatih Arslan Tarafından Hazırlanmıştır.</div>', unsafe_allow_html=True)
+st.markdown('<div class="fatih-footer">FATİH ARSLAN TARAFINDAN YAPILMIŞTIR</div>', unsafe_allow_html=True)
 
 # --- 2. CONFIG ---
 AY_LISTESI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım",
@@ -104,38 +125,27 @@ TARAF_SECENEKLERI = ["Sektör", "Mevduat-Kamu"]
 
 VERI_KONFIGURASYONU = {
     "📌 Toplam Aktifler": {"tab": "tabloListesiItem-1", "row_text": "TOPLAM AKTİFLER", "col_id": "grdRapor_Toplam"},
-
     "📌 Toplam Özkaynaklar": {"tab": "tabloListesiItem-1", "row_text": "TOPLAM ÖZKAYNAKLAR",
                              "col_id": "grdRapor_Toplam"},
-
     "💰 Dönem Net Kârı": {"tab": "tabloListesiItem-2", "row_text": "DÖNEM NET KARI (ZARARI)",
                          "col_id": "grdRapor_Toplam"},
-
     "📊 Sermaye Yeterliliği Rasyosu": {"tab": "tabloListesiItem-12", "row_text": "Sermaye Yeterliliği Standart Rasyosu",
                                       "col_id": "grdRapor_Toplam"},
-
     "🏦 Toplam Krediler": {"tab": "tabloListesiItem-3", "row_text": "Toplam Krediler", "col_id": "grdRapor_Toplam"},
-
     "⚠️ Takipteki Alacaklar": {"tab": "tabloListesiItem-1", "row_text": "Takipteki Alacaklar",
                                "col_id": "grdRapor_Toplam"},
-
     "💳 Bireysel Kredi Kartları": {"tab": "tabloListesiItem-4", "row_text": "Bireysel Kredi Kartları (10+11)",
                                   "col_id": "grdRapor_Toplam"},
-
     "🏠 Tüketici Kredileri": {"tab": "tabloListesiItem-4", "row_text": "Tüketici Kredileri (2+3+4)",
                              "col_id": "grdRapor_Toplam"},
-
     "⚠️ Toplam Takipteki Bireysel Krediler": {"tab": "tabloListesiItem-4",
                                               "row_text": "Toplam - Takipteki Tük. Krd. ve Takipteki Bireysel Kredi Kartları (13+17)",
                                               "col_id": "grdRapor_Toplam"},
-
     "🏠 Ticari Krediler": {"tab": "tabloListesiItem-4",
                           "row_text": "Toplam - Taksitli Tic. Krd.(Dövize End. Dahil) ve Kurumsal Kredi Kartları (19+23+27)",
                           "col_id": "grdRapor_Toplam"},
-
     "🏭 KOBİ Kredileri": {"tab": "tabloListesiItem-6", "row_text": "Toplam KOBİ Kredileri",
                          "col_id": "grdRapor_NakdiKrediToplam"},
-
     "⚠️ Toplam Takipteki Ticari Krediler": {"tab": "tabloListesiItem-4",
                                             "row_text": "Takipteki Taksitli Tic.  Krd. ve Kurumsal Kredi Kartları Toplamı (31+35)",
                                             "col_id": "grdRapor_Toplam"},
@@ -149,7 +159,6 @@ def get_driver():
         options = FirefoxOptions()
         options.add_argument("--headless")
         options.add_argument("--disable-gpu")
-        # Resimleri engelle (Firefox)
         options.set_preference('permissions.default.image', 2)
         options.set_preference('dom.ipc.plugins.enabled.libflashplayer.so', 'false')
         try:
@@ -161,27 +170,23 @@ def get_driver():
     # Windows / Local Ortam
     else:
         options = ChromeOptions()
-        options.add_argument("--headless=new")  # Arka planda çalıştır
+        options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
-
-        # HIZLANDIRMA AYARLARI (Gereksizleri Yükleme)
         prefs = {
-            "profile.managed_default_content_settings.images": 2,  # Resimleri kapat
-            "profile.default_content_setting_values.notifications": 2,  # Bildirimleri kapat
+            "profile.managed_default_content_settings.images": 2,
+            "profile.default_content_setting_values.notifications": 2,
             "profile.managed_default_content_settings.stylesheets": 2,
-            # CSS'i azalt (Opsiyonel, bazen yapıyı bozabilir, riskliyse bu satırı sil)
             "profile.managed_default_content_settings.cookies": 2,
-            "profile.managed_default_content_settings.javascript": 1,  # JS mecburen açık kalmalı
+            "profile.managed_default_content_settings.javascript": 1,
             "profile.managed_default_content_settings.plugins": 1,
             "profile.managed_default_content_settings.popups": 2,
             "profile.managed_default_content_settings.geolocation": 2,
             "profile.managed_default_content_settings.media_stream": 2,
         }
         options.add_experimental_option("prefs", prefs)
-
         try:
             service = ChromeService(ChromeDriverManager().install())
             return webdriver.Chrome(service=service, options=options)
@@ -201,11 +206,9 @@ def scrape_bddk_data(bas_yil, bas_ay, bit_yil, bit_ay, secilen_taraflar, secilen
         if not driver:
             return pd.DataFrame()
 
-        # Sayfa yükleme zaman aşımı
         driver.set_page_load_timeout(60)
         driver.get("https://www.bddk.org.tr/bultenaylik")
 
-        # İlk açılışta yıl dropdown'ının gelmesini bekle
         wait = WebDriverWait(driver, 20)
         wait.until(EC.presence_of_element_located((By.ID, "ddlYil")))
 
@@ -215,8 +218,6 @@ def scrape_bddk_data(bas_yil, bas_ay, bit_yil, bit_ay, secilen_taraflar, secilen
         total_steps = (bit_yil - bas_yil) * 12 + (bit_idx - bas_idx) + 1
         current_step = 0
 
-        # --- OPTİMİZASYON: VERİLERİ SEKME (TAB) BAZINDA GRUPLA ---
-        # Aynı sekmedeki veriler için sayfayı tekrar tekrar tıklamayalım.
         veriler_by_tab = {}
         for veri in secilen_veriler:
             tab_id = VERI_KONFIGURASYONU[veri]['tab']
@@ -236,28 +237,21 @@ def scrape_bddk_data(bas_yil, bas_ay, bit_yil, bit_ay, secilen_taraflar, secilen
                     status_text_obj.info(f"⏳ **İşleniyor:** {donem}")
 
                 try:
-                    # YIL SEÇİMİ
                     driver.execute_script("document.getElementById('ddlYil').style.display = 'block';")
                     sel_yil = Select(driver.find_element(By.ID, "ddlYil"))
                     sel_yil.select_by_visible_text(str(yil))
-                    # JS ile change event tetikle (daha hızlı ve güvenli)
                     driver.execute_script("arguments[0].dispatchEvent(new Event('change'))",
                                           driver.find_element(By.ID, "ddlYil"))
+                    time.sleep(1)
 
-                    # Dinamik bekleme: Ay dropdown'ı güncellenene kadar bekle
-                    time.sleep(1)  # BDDK sunucusu bazen geç yanıt verir, kısa bir sleep güvenlidir
-
-                    # AY SEÇİMİ
                     driver.execute_script("document.getElementById('ddlAy').style.display = 'block';")
                     sel_ay_elem = driver.find_element(By.ID, "ddlAy")
                     sel_ay = Select(sel_ay_elem)
                     sel_ay.select_by_visible_text(ay_str)
                     driver.execute_script("arguments[0].dispatchEvent(new Event('change'))", sel_ay_elem)
-
                     time.sleep(1)
 
                     for taraf in secilen_taraflar:
-                        # TARAF SEÇİMİ
                         driver.execute_script("document.getElementById('ddlTaraf').style.display = 'block';")
                         taraf_elem = driver.find_element(By.ID, "ddlTaraf")
                         select_taraf = Select(taraf_elem)
@@ -268,31 +262,20 @@ def scrape_bddk_data(bas_yil, bas_ay, bit_yil, bit_ay, secilen_taraflar, secilen
                                 if taraf in opt.text:
                                     select_taraf.select_by_visible_text(opt.text)
                                     break
-
                         driver.execute_script("arguments[0].dispatchEvent(new Event('change'))", taraf_elem)
-                        time.sleep(1)  # Tablonun yüklenmesi için kısa bekleme
-
-                        # --- OPTİMİZE EDİLMİŞ VERİ ÇEKME DÖNGÜSÜ ---
-                        # Her bir veri için değil, her bir SEKME (TAB) için döngü kuruyoruz.
+                        time.sleep(1)
 
                         for tab_id, veri_listesi in veriler_by_tab.items():
-                            # 1. İlgili sekmeye tıkla (Eğer birden fazla veri aynı sekmedeyse sadece 1 kere tıklar)
                             try:
                                 target_tab = wait.until(EC.element_to_be_clickable((By.ID, tab_id)))
                                 driver.execute_script("arguments[0].click();", target_tab)
-                                time.sleep(0.5)  # Sekme geçiş animasyonu için minik bekleme
-                            except Exception as e:
-                                # Sekme bulunamazsa (o dönemde veri yoksa) bu grubu atla
+                                time.sleep(0.5)
+                            except:
                                 continue
 
-                            # 2. Sayfa kaynağını TEK SEFERDE al
                             soup = BeautifulSoup(driver.page_source, 'html.parser')
-
-                            # 3. O sekmedeki tüm istenen verileri bu kaynaktan parse et
                             for veri in veri_listesi:
                                 conf = VERI_KONFIGURASYONU[veri]
-
-                                # Grup (Sektör/Kamu) algılama
                                 current_group = None
                                 for row in soup.find_all("tr"):
                                     group_cell = row.find("td", colspan=True)
@@ -305,13 +288,10 @@ def scrape_bddk_data(bas_yil, bas_ay, bit_yil, bit_ay, secilen_taraflar, secilen
                                         continue
 
                                     ad = row.find("td", {"aria-describedby": "grdRapor_Ad"})
-                                    # Dikkat: col_id her veri için farklı olabilir ama aynı tab'dalar
                                     toplam = row.find("td", {"aria-describedby": conf['col_id']})
 
                                     if ad and toplam:
                                         row_taraf = current_group if current_group else taraf
-
-                                        # "contains" mantığı ile eşleşme (daha esnek)
                                         if conf['row_text'] in ad.get_text(strip=True):
                                             raw_text = toplam.get_text(strip=True)
                                             clean_text = raw_text.replace('.', '').replace(',', '.')
@@ -321,28 +301,18 @@ def scrape_bddk_data(bas_yil, bas_ay, bit_yil, bit_ay, secilen_taraflar, secilen
                                                 found_val = 0.0
 
                                             data.append({
-                                                "Dönem": donem,
-                                                "Taraf": row_taraf,
-                                                "Kalem": veri,
-                                                "Değer": found_val,
-                                                "TarihObj": pd.to_datetime(f"{yil}-{ay_i + 1}-01")
+                                                "Dönem": donem, "Taraf": row_taraf, "Kalem": veri,
+                                                "Değer": found_val, "TarihObj": pd.to_datetime(f"{yil}-{ay_i + 1}-01")
                                             })
-                                            # Veriyi bulduk, bu satırı işlemeyi bırak diğer veriye geç
-                                            # (Bir tabloda aynı isimde tek satır olduğunu varsayıyoruz)
-                                            # break # Break kullanmıyoruz çünkü alt kalemler olabilir
-                except Exception as e:
-                    # Hata durumunda log basılabilir ama akışı bozmasın
+                except:
                     pass
-
                 current_step += 1
-                if progress_bar_obj:
-                    progress_bar_obj.progress(min(current_step / max(1, total_steps), 1.0))
+                if progress_bar_obj: progress_bar_obj.progress(min(current_step / max(1, total_steps), 1.0))
 
     except Exception as e:
         st.error(f"Kritik Hata: {e}")
     finally:
         if driver: driver.quit()
-
     return pd.DataFrame(data)
 
 
@@ -395,15 +365,8 @@ if st.session_state['df_sonuc'] is not None:
     df = df.drop_duplicates(subset=["Dönem", "Taraf", "Kalem"])
     df = df.sort_values("TarihObj")
 
-    # 4 SEKMELİ ŞOV ALANI
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📉 Trend Analizi",
-        "🧪 Senaryo",
-        "📑 Veri Tablosu",
-        "🧠 Akıllı Analiz Botu 2.0"
-    ])
+    tab1, tab2, tab3, tab4 = st.tabs(["📉 Trend Analizi", "🧪 Senaryo", "📑 Veri Tablosu", "🧠 Akıllı Analiz Botu 2.0"])
 
-    # 1. SEKME: TREND (KLASİK)
     with tab1:
         kalem_sec = st.selectbox("Grafik Kalemi:", df["Kalem"].unique(), key="trend_select")
         df_chart = df[df["Kalem"] == kalem_sec].copy().sort_values("TarihObj")
@@ -414,7 +377,6 @@ if st.session_state['df_sonuc'] is not None:
         fig.update_layout(hovermode="x unified")
         st.plotly_chart(fig, use_container_width=True, key="trend_chart")
 
-    # 3. SEKME: SENARYO
     with tab2:
         st.markdown("#### 🧪 What-If Analizi")
         c_sim1, c_sim2 = st.columns([1, 2])
@@ -429,62 +391,47 @@ if st.session_state['df_sonuc'] is not None:
                 mevcut = base_row.iloc[0]["Değer"]
                 yeni = mevcut * (1 + artis_orani / 100)
                 fark = yeni - mevcut
-
-                # Görsel Kartlar
                 c_k1, c_k2, c_k3 = st.columns(3)
                 c_k1.metric("Mevcut", f"{mevcut:,.0f}")
                 c_k2.metric("Senaryo", f"{yeni:,.0f}", f"{fark:,.0f}")
-
-                # Basit Bar
                 sim_df = pd.DataFrame({"Durum": ["Mevcut", "Senaryo"], "Değer": [mevcut, yeni]})
                 fig_sim = px.bar(sim_df, x="Durum", y="Değer", color="Durum", text_auto='.2s',
                                  color_discrete_map={"Mevcut": "gray", "Senaryo": "orange"})
                 fig_sim.update_layout(height=250, showlegend=False)
                 st.plotly_chart(fig_sim, use_container_width=True)
 
-    # 4. SEKME: TABLO & EXCEL
     with tab3:
         st.markdown("#### 📑 Ham Veri")
         df_display = df.sort_values(["TarihObj", "Kalem", "Taraf"])[["Dönem", "Kalem", "Taraf", "Değer"]]
         df_display_fmt = df_display.copy()
         df_display_fmt["Değer"] = df_display_fmt["Değer"].apply(lambda x: "{:,.0f}".format(x).replace(",", "."))
         st.dataframe(df_display_fmt, use_container_width=True)
-
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer) as writer:
             for kalem in df["Kalem"].unique():
                 sub = df[df["Kalem"] == kalem].copy().sort_values(["TarihObj", "Taraf"]).drop(
                     columns=["Kalem", "TarihObj"])
                 sub.to_excel(writer, index=False, sheet_name=kalem[:30].replace("/", "-"))
-
         st.download_button("💾 Excel İndir", buffer.getvalue(), "bddk_analiz.xlsx",
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_btn")
 
-    # 5. SEKME: AKILLI ANALİZ BOTU 2.0 (ŞOV KISMI)
     with tab4:
         st.markdown("#### 🧠 Akıllı Analiz Botu 2.0")
         st.info("Verileri istatistiksel olarak inceler, riskleri ve fırsatları matematiksel olarak bulur.")
-
         bot_kalem = st.selectbox("Analiz Edilecek Veri:", df["Kalem"].unique(), key="bot_select")
         bot_taraf = st.selectbox("Odaklanılacak Taraf:", df["Taraf"].unique(), key="bot_taraf_select")
 
         if st.button("Analizi Çalıştır", key="run_bot"):
             with st.spinner("Bot verileri tarıyor, istatistikleri hesaplıyor..."):
-                time.sleep(1)  # Şov efekti
-
-                # Veri Hazırlığı
+                time.sleep(1)
                 df_bot = df[(df["Kalem"] == bot_kalem) & (df["Taraf"] == bot_taraf)].sort_values("TarihObj")
-
                 if not df_bot.empty:
                     son_deger = df_bot.iloc[-1]["Değer"]
                     ilk_deger = df_bot.iloc[0]["Değer"]
                     ortalama = df_bot["Değer"].mean()
                     std_sapma = df_bot["Değer"].std()
-
-                    # 1. BÜYÜME KARTI
                     toplam_buyume = ((son_deger - ilk_deger) / ilk_deger) * 100
                     trend_icon = "🚀" if toplam_buyume > 0 else "📉"
-
                     st.markdown(f"""
                     <div class="bot-card">
                         <div class="bot-title">📊 Genel Trend Analizi</div>
@@ -492,61 +439,34 @@ if st.session_state['df_sonuc'] is not None:
                         <p>Seçilen dönem aralığında <b>{bot_taraf}</b> tarafında <b>{bot_kalem}</b> verisi {ilk_deger:,.0f} seviyesinden {son_deger:,.0f} seviyesine gelmiştir.</p>
                     </div>
                     """, unsafe_allow_html=True)
-
                     c_bot1, c_bot2 = st.columns(2)
-
-                    # 2. RİSK / VOLATİLİTE ANALİZİ (Z-Score)
                     with c_bot1:
                         st.markdown("##### ⚠️ Risk ve Stabilite")
-                        # Varyasyon katsayısı (CV) = Std Sapma / Ortalama
                         cv = (std_sapma / ortalama) * 100 if ortalama != 0 else 0
-
-                        risk_renk = "green"
-                        risk_yorum = "Düşük (Stabil)"
-                        if cv > 20:
-                            risk_renk = "red"
-                            risk_yorum = "Yüksek (Dalgalı)"
-                        elif cv > 10:
-                            risk_renk = "orange"
-                            risk_yorum = "Orta (Normal)"
-
-                        fig_gauge = go.Figure(go.Indicator(
-                            mode="gauge+number",
-                            value=cv,
-                            title={'text': "Volatilite (Risk) Skoru"},
-                            gauge={'axis': {'range': [0, 50]},
-                                   'bar': {'color': risk_renk},
-                                   'steps': [
-                                       {'range': [0, 10], 'color': "#e6fffa"},
-                                       {'range': [10, 20], 'color': "#fffaf0"},
-                                       {'range': [20, 50], 'color': "#fff5f5"}],
-                                   'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75,
-                                                 'value': 40}}))
+                        risk_renk = "green" if cv <= 10 else "orange" if cv <= 20 else "red"
+                        risk_yorum = "Düşük (Stabil)" if cv <= 10 else "Orta (Normal)" if cv <= 20 else "Yüksek (Dalgalı)"
+                        fig_gauge = go.Figure(
+                            go.Indicator(mode="gauge+number", value=cv, title={'text': "Volatilite (Risk) Skoru"},
+                                         gauge={'axis': {'range': [0, 50]}, 'bar': {'color': risk_renk},
+                                                'steps': [{'range': [0, 10], 'color': "#e6fffa"},
+                                                          {'range': [10, 20], 'color': "#fffaf0"},
+                                                          {'range': [20, 50], 'color': "#fff5f5"}],
+                                                'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75,
+                                                              'value': 40}}))
                         fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
                         st.plotly_chart(fig_gauge, use_container_width=True)
                         st.caption(f"Veri hareketliliği (CV): %{cv:.1f} - Durum: **{risk_yorum}**")
-
-                    # 3. GELECEK TAHMİNİ (Basit Projeksiyon)
                     with c_bot2:
                         st.markdown("##### 🔮 Gelecek Ay Tahmini")
-                        # Ortalama aylık büyüme hızını bul
                         df_bot["degisim"] = df_bot["Değer"].pct_change()
                         avg_growth = df_bot["degisim"].mean()
-
                         gelecek_tahmin = son_deger * (1 + avg_growth)
                         fark_tahmin = gelecek_tahmin - son_deger
-
-                        st.metric(label="Önümüzdeki Ay Beklentisi",
-                                  value=f"{gelecek_tahmin:,.0f}",
+                        st.metric(label="Önümüzdeki Ay Beklentisi", value=f"{gelecek_tahmin:,.0f}",
                                   delta=f"{fark_tahmin:,.0f} (Tahmini Artış)")
-
-                        st.markdown(f"""
-                        <div style="background-color:#f0f2f6; padding:10px; border-radius:5px; font-size:12px;">
-                        ℹ️ <b>Not:</b> Bu tahmin, geçmiş dönemlerin ortalama büyüme hızı (%{avg_growth * 100:.2f}) baz alınarak hesaplanmıştır. Kesinlik içermez.
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    # 4. ANOMALİ KONTROLÜ
+                        st.markdown(
+                            f"""<div style="background-color:#f0f2f6; padding:10px; border-radius:5px; font-size:12px;">ℹ️ <b>Not:</b> Bu tahmin, geçmiş dönemlerin ortalama büyüme hızı (%{avg_growth * 100:.2f}) baz alınarak hesaplanmıştır. Kesinlik içermez.</div>""",
+                            unsafe_allow_html=True)
                     z_score = (son_deger - ortalama) / std_sapma if std_sapma != 0 else 0
                     if abs(z_score) > 2:
                         st.warning(
