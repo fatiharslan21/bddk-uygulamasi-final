@@ -78,10 +78,10 @@ VERI_KONFIGURASYONU = {
                              "col_id": "grdRapor_Toplam"},
 
     "💰 Dönem Net Kârı": {"tab": "tabloListesiItem-2", "row_text": "DÖNEM NET KARI (ZARARI)",
-                         "col_id": "grdRapor_Toplam"},
+                          "col_id": "grdRapor_Toplam"},
 
     "📊 Sermaye Yeterliliği Rasyosu": {"tab": "tabloListesiItem-12", "row_text": "Sermaye Yeterliliği Standart Rasyosu",
-                                      "col_id": "grdRapor_Toplam"},
+                                     "col_id": "grdRapor_Toplam"},
 
     "🏦 Toplam Krediler": {"tab": "tabloListesiItem-3", "row_text": "Toplam Krediler", "col_id": "grdRapor_Toplam"},
 
@@ -101,10 +101,10 @@ VERI_KONFIGURASYONU = {
                              "col_id": "grdRapor_Toplam"},
 
     "🏭 KOBİ Kredileri": {"tab": "tabloListesiItem-6", "row_text": "Toplam KOBİ Kredileri",
-                         "col_id": "grdRapor_NakdiKrediToplam"},
+                          "col_id": "grdRapor_NakdiKrediToplam"},
 
     "⚠️ Toplam Takipteki Ticari Krediler": {"tab": "tabloListesiItem-4", "row_text": "Takipteki Taksitli Tic.  Krd. ve Kurumsal Kredi Kartları Toplamı (31+35)",
-                                           "col_id": "grdRapor_Toplam"},
+                                                             "col_id": "grdRapor_Toplam"},
 }
 
 
@@ -365,7 +365,7 @@ if st.session_state['df_sonuc'] is not None:
     tab1, tab2, tab3, tab4 = st.tabs([
         "📉 Trend Analizi",
         "🧪 Senaryo",
-        "📑 Veri Tablosu",
+        "📑 Veri Tablosu & Excel",
         "🧠 Akıllı Analiz Botu 2.0"
     ])
 
@@ -381,7 +381,7 @@ if st.session_state['df_sonuc'] is not None:
         st.plotly_chart(fig, use_container_width=True, key="trend_chart")
 
 
-    # 3. SEKME: SENARYO
+    # 2. SEKME: SENARYO
     with tab2:
         st.markdown("#### 🧪 What-If Analizi")
         c_sim1, c_sim2 = st.columns([1, 2])
@@ -409,25 +409,60 @@ if st.session_state['df_sonuc'] is not None:
                 fig_sim.update_layout(height=250, showlegend=False)
                 st.plotly_chart(fig_sim, use_container_width=True)
 
-    # 4. SEKME: TABLO & EXCEL
+    # 3. SEKME: TABLO & EXCEL (GÜNCELLENDİ)
     with tab3:
-        st.markdown("#### 📑 Ham Veri")
+        st.markdown("#### 📑 Ham Veri ve Excel İndirme")
+        
+        # Ekrana basılan tablo (Formatlı)
         df_display = df.sort_values(["TarihObj", "Kalem", "Taraf"])[["Dönem", "Kalem", "Taraf", "Değer"]]
         df_display_fmt = df_display.copy()
         df_display_fmt["Değer"] = df_display_fmt["Değer"].apply(lambda x: "{:,.0f}".format(x).replace(",", "."))
         st.dataframe(df_display_fmt, use_container_width=True)
 
         buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer) as writer:
+        # xlsxwriter motorunu kullanarak formatlama yapacağız
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            workbook = writer.book
+            # Excel'de binlik ayracı (nokta) formatı: #,##0
+            num_format = workbook.add_format({'num_format': '#,##0'})
+            
             for kalem in df["Kalem"].unique():
-                sub = df[df["Kalem"] == kalem].copy().sort_values(["TarihObj", "Taraf"]).drop(
-                    columns=["Kalem", "TarihObj"])
-                sub.to_excel(writer, index=False, sheet_name=kalem[:30].replace("/", "-"))
+                # İlgili kalemi filtrele
+                sub = df[df["Kalem"] == kalem].copy()
+                
+                # --- PIVOT İŞLEMİ (YAN YANA YAZDIRMA) ---
+                # Index: TarihObj, Dönem | Kolonlar: Taraf | Değerler: Değer
+                sub_pivot = sub.pivot_table(index=["TarihObj", "Dönem"], columns="Taraf", values="Değer")
+                
+                # İndeksi sıfırla ve TarihObj'ye göre sıralayıp onu at (Excel'de görünmesin diye)
+                sub_pivot = sub_pivot.sort_values("TarihObj").reset_index()
+                sub_pivot = sub_pivot.drop(columns=["TarihObj"])
+                
+                # Kolon isimlerini temizle (Pivot sonrası 'Taraf' ismi kalabilir)
+                sub_pivot.columns.name = None
+                
+                # Sheet adı oluştur (Excel max 31 karakter kabul eder)
+                sheet_name = kalem[:30].replace("/", "-")
+                
+                # Excel'e yaz (Index'i yazma)
+                sub_pivot.to_excel(writer, index=False, sheet_name=sheet_name)
+                
+                # --- FORMATLAMA KISMI ---
+                worksheet = writer.sheets[sheet_name]
+                
+                # Sütunları döngüye alıp genişlet ve formatla
+                for idx, col in enumerate(sub_pivot.columns):
+                    # Genişlik ayarla (20 birim)
+                    # "Dönem" sütunu (idx=0) hariç diğerlerine sayı formatı uygula
+                    if idx > 0: 
+                        worksheet.set_column(idx, idx, 20, num_format)
+                    else:
+                        worksheet.set_column(idx, idx, 15)
 
-        st.download_button("💾 Excel İndir", buffer.getvalue(), "bddk_analiz.xlsx",
+        st.download_button("💾 Excel İndir (Yan Yana & Formatlı)", buffer.getvalue(), "bddk_analiz_yan_yana.xlsx",
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_btn")
 
-    # 5. SEKME: AKILLI ANALİZ BOTU 2.0 (ŞOV KISMI)
+    # 4. SEKME: AKILLI ANALİZ BOTU 2.0 (ŞOV KISMI)
     with tab4:
         st.markdown("#### 🧠 Akıllı Analiz Botu 2.0")
         st.info("Verileri istatistiksel olarak inceler, riskleri ve fırsatları matematiksel olarak bulur.")
